@@ -20,3 +20,5 @@ terraform.rc
 .terraform.lock.hcl
 
 kubeconfig*
+
+*-config
