@@ -1,128 +1,78 @@
 # Terraform Kubernetes Lab
 
-This project demonstrates how to provision a local Kubernetes cluster using Kind (Kubernetes in Docker) and deploy applications using Terraform.
+This project uses Terraform to provision a local Kubernetes cluster with [Kind](https://kind.sigs.k8s.io/) and deploy sample manifests.
 
 ## Prerequisites
 
-Ensure you have the following tools installed on your system:
+You will need to have the following tools installed:
 
-- [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-- [Docker](https://docs.docker.com/get-docker/)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-- [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) (Optional)
+- **Terraform**: [Installation instructions](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+- **kubectl**: [Installation instructions](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+- **Kind**: [Installation instructions](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 
-> **Note on Kind Installation**: The Terraform provider for Kind (`tehcyx/kind`) will automatically download and use its own version of the `kind` executable. Therefore, you do not need to install `kind` manually for Terraform to work. However, installing it is recommended for interacting with your cluster directly (e.g., `kind get clusters`).
+## How to Run
 
-## Configuring the Kind Cluster
+The project is divided into two main steps:
 
-The default configuration for the cluster is minimal and only sets the cluster name. You can add more advanced configurations, such as port mappings, by modifying the `kind_cluster` resource within the `modules/k8s-kind/main.tf` file.
+### 1. Provision the Cluster
 
-For example, to map port `8080` on your local machine to port `80` on the cluster's control-plane node, you can add a `kind_config` block like this:
+In this step, the Kind cluster is created with a configurable control-plane and worker nodes.
 
-**File: `modules/k8s-kind/main.tf`**
+```bash
+# Initialize Terraform in the root directory
+terraform init
+
+# Create the cluster
+terraform apply -auto-approve
+```
+
+### 2. Deploy the Manifests
+
+After the cluster is created, this step deploys an Nginx `Deployment` and `Service`.
+
+```bash
+# Navigate to the manifests directory
+cd k8s-manifests
+
+# Initialize Terraform
+terraform init
+
+# Deploy the Kubernetes resources
+terraform apply -auto-approve
+```
+
+## Configuration
+
+You can configure the number of worker nodes in the cluster by editing the `main.tf` file in the project root. Change the `worker_nodes` variable:
+
 ```terraform
-resource "kind_cluster" "this" {
-  name           = var.cluster_name
-  wait_for_ready = true
+# main.tf
 
-  kind_config {
-    kind        = "Cluster"
-    api_version = "kind.x-k8s.io/v1alpha4"
-    node {
-      role = "control-plane"
-      extra_port_mappings {
-        container_port = 80
-        host_port      = 8080
-        protocol       = "TCP"
-      }
-    }
-  }
+module "k8s_kind" {
+  source       = "./modules/k8s-kind"
+  cluster_name = "playground-k8s"
+  worker_nodes = 2 # Change this value to the desired number of workers
 }
 ```
 
-After modifying the module, you would need to run `terraform apply` again in the root directory to update the cluster with the new configuration.
-
-## Project Structure
-
-The repository is organized into two main parts:
-
-- **Root Directory (`./`)**: This contains the Terraform configuration to provision the Kind cluster itself. It uses the `tehcyx/kind` provider to create the cluster and outputs the path to the generated `kubeconfig` file.
-- **`k8s-manifests/`**: This directory contains the Terraform configuration to deploy Kubernetes resources (an Nginx deployment and service) onto the cluster. It uses the `hashicorp/kubernetes` provider, which is configured by the `kubeconfig` file from the first stage.
-
-## Usage
-
-Follow these steps to create the cluster and deploy the applications.
-
-### Stage 1: Provision the Kind Cluster
-
-1.  **Navigate to the project root directory.**
-    ```bash
-    cd terraform-k8s-lab
-    ```
-
-2.  **Initialize Terraform.** This will download the necessary providers.
-    ```bash
-    terraform init
-    ```
-
-3.  **Apply the configuration to create the cluster.**
-    ```bash
-    terraform apply
-    ```
-    Confirm the action by typing `yes`. After the command completes, Terraform will display the `kubeconfig_path` output. **Copy this path for the next stage.**
-
-### Stage 2: Deploy Kubernetes Resources
-
-1.  **Navigate to the `k8s-manifests` directory.**
-    ```bash
-    cd k8s-manifests
-    ```
-
-2.  **Initialize Terraform.**
-    ```bash
-    terraform init
-    ```
-
-3.  **Apply the configuration, passing the kubeconfig path.**
-    Replace `"/path/to/your/kubeconfig"` with the actual path you copied from Stage 1.
-    ```bash
-    terraform apply -var="kubeconfig_path=/path/to/your/kubeconfig"
-    ```
-    Confirm the action by typing `yes`. This will deploy the Nginx resources to your Kind cluster.
-
 ## Verification
 
-To verify that the resources have been deployed successfully, you can use `kubectl`.
+To verify that the cluster is running and the nodes have been created, use `kubectl`:
 
-1.  **Set the `KUBECONFIG` environment variable** to point to your new cluster's configuration file.
-    ```bash
-    export KUBECONFIG="/path/to/your/kubeconfig"
-    ```
+```bash
+kubectl get nodes
+```
 
-2.  **Check the cluster nodes.**
-    ```bash
-    kubectl get nodes
-    ```
-    You should see the control-plane node for your `playground-k8s` cluster in a `Ready` state.
+## Cleanup
 
-3.  **Check the Nginx deployment and service.**
-    ```bash
-    kubectl get deployment,svc -n default
-    ```
-    You should see the `nginx-deployment` and the `nginx-svc` service listed.
+To destroy all resources, run `destroy` in each directory, in reverse order:
 
-## Cleaning Up
+```bash
+# Destroy the Kubernetes manifests
+cd k8s-manifests
+terraform destroy -auto-approve
 
-To destroy the resources and tear down the environment, you must run the `destroy` command in each stage, in the reverse order of creation.
-
-1.  **Destroy the Kubernetes resources.**
-    Navigate to the `k8s-manifests` directory and run:
-    ```bash
-    terraform destroy -var="kubeconfig_path=/path/to/your/kubeconfig"
-    ```
-
-2.  **Destroy the Kind cluster.**
-    Navigate back to the root directory and run:
-    ```bash
-    terraform destroy
-    ```
+# Go back to the root and destroy the cluster
+cd ..
+terraform destroy -auto-approve
+```
