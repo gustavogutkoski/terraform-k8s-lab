@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: trustscore-api-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: trustscore-api
+    namespace: default
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

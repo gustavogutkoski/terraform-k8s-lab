@@ -10,13 +10,16 @@ spec:
   selector:
     matchLabels:
       app: nginx
+      namespace: default
   template:
     metadata:
       labels:
         app: nginx
+        namespace: default
     spec:
       containers:
         - name: nginx
           image: nginx:latest
+          namespace: default
           ports:
             - containerPort: 80
